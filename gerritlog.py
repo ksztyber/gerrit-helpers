@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
 
+import gerrit
+import getpass
 import git
 import itertools
+import netrc
+import os
 import re
+import urllib
 
 
 class Commit:
     _chgid_regex = re.compile(r'Change-Id:\s+([a-zA-Z0-9]+)')
 
-    def __init__(self, commit: git.Commit):
+    def __init__(self, commit: git.Commit, gerrit: gerrit.GerritClient):
         self._repo = commit.repo
         self._master = self._get_master()
+        self._client = gerrit
         self.commit = commit
         self.change_id = self._get_change_id()
         self.is_merged = self._check_merged()
@@ -45,10 +51,38 @@ class Commit:
         return self._repo.git.rev_parse(self._get_sha(), short=True)
 
 
+def get_url(repo: git.repo.base.Repo):
+    origin = next(filter(lambda r: r.name == 'origin', repo.remotes), None)
+    if origin is None:
+        raise ValueError('Failed to find origin remote')
+    for url in [urllib.parse.urlparse(u) for u in origin.urls]:
+        if url.scheme in ('http', 'https'):
+            return f'{url.scheme}://{url.netloc}'
+    raise ValueError('Failed to find origin http(s) url')
+
+
+def get_username():
+    username = os.getenv('GERRIT_USERNAME')
+    if username is not None:
+        return username
+    return getpass.getuser()
+
+
+def create_client(repo: git.repo.base.Repo):
+    url = get_url(repo)
+    if url not in netrc.netrc().hosts:
+        password = getpass.getpass()
+    else:
+        password = None
+    return gerrit.GerritClient(base_url=url, username=get_username(),
+                               use_netrc=password is None)
+
+
 def main():
     repo = git.repo.Repo()
+    client = create_client(repo)
     for c in repo.iter_commits():
-        commit = Commit(c)
+        commit = Commit(c, client)
         print('{} {} {}'.format(commit.shortsha, commit.title,
                                 '[merged]' if commit.is_merged else ''))
 
