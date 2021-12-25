@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 
-import gerrit
 import getpass
 import git
 import itertools
 import netrc
 import os
 import re
+import sys
 import urllib
+
+
+# Add the python-gerrit-api submodule to the path
+sys.path.insert(0, '{}/python-gerrit-api'.format(
+    os.path.dirname(os.path.realpath(__file__))))
+import gerrit  # noqa
 
 
 class Commit:
