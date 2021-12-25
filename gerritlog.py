@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import enum
 import getpass
 import git
 import itertools
@@ -14,6 +15,12 @@ import urllib
 sys.path.insert(0, '{}/python-gerrit-api'.format(
     os.path.dirname(os.path.realpath(__file__))))
 import gerrit  # noqa
+
+
+class VerifyStatus(enum.Enum):
+    FAILURE = -1
+    NO_SCORE = 0
+    SUCCESS = 1
 
 
 class Commit:
@@ -56,6 +63,17 @@ class Commit:
     def _get_shortsha(self):
         return self._repo.git.rev_parse(self._get_sha(), short=True)
 
+    def verify_status(self):
+        if self.change_id is None:
+            return VerifyStatus.NO_SCORE
+        patch = self._client.changes.get(self.change_id, detailed=True)
+        status = patch.labels['Verified']
+        if status.get('approved') is not None:
+            return VerifyStatus.SUCCESS
+        if status.get('rejected') is not None:
+            return VerifyStatus.FAILURE
+        return VerifyStatus.NO_SCORE
+
 
 def get_url(repo: git.repo.base.Repo):
     origin = next(filter(lambda r: r.name == 'origin', repo.remotes), None)
@@ -87,10 +105,16 @@ def create_client(repo: git.repo.base.Repo):
 def main():
     repo = git.repo.Repo()
     client = create_client(repo)
+    statusmap = {VerifyStatus.FAILURE: 'x',
+                 VerifyStatus.NO_SCORE: '?',
+                 VerifyStatus.SUCCESS: 'v'}
     for c in repo.iter_commits():
         commit = Commit(c, client)
-        print('{} {} {}'.format(commit.shortsha, commit.title,
-                                '[merged]' if commit.is_merged else ''))
+        if commit.is_merged:
+            status = 'm'
+        else:
+            status = statusmap[commit.verify_status()]
+        print('{} [{}] {}'.format(commit.shortsha, status, commit.title))
 
 
 if __name__ == '__main__':
