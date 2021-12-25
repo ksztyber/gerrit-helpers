@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import colorama
 import enum
 import getpass
 import git
@@ -102,16 +103,22 @@ def create_client(repo: git.repo.base.Repo):
                                use_netrc=password is None)
 
 
+def colorfmt(string: str, color: str, style: str = ''):
+    return f'{color}{style}{string}{colorama.Style.RESET_ALL}'
+
+
 def main():
+    colorama.init()
     repo = git.repo.Repo()
     client = create_client(repo)
-    statusmap = {VerifyStatus.FAILURE: 'x',
-                 VerifyStatus.NO_SCORE: '?',
-                 VerifyStatus.SUCCESS: 'v'}
+    color, style = colorama.Fore, colorama.Style
+    statusmap = {VerifyStatus.FAILURE: colorfmt('x', color.RED),
+                 VerifyStatus.NO_SCORE: colorfmt('?', color.YELLOW),
+                 VerifyStatus.SUCCESS: colorfmt('v', color.GREEN)}
     for c in repo.iter_commits():
         commit = Commit(c, client)
         if commit.is_merged:
-            status = 'm'
+            status = colorfmt('m', color.CYAN)
         else:
             status = statusmap[commit.verify_status()]
         print('{} [{}] {}'.format(commit.shortsha, status, commit.title))
