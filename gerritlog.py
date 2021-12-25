@@ -122,6 +122,10 @@ def main():
         else:
             status = statusmap[commit.verify_status()]
         print('{} [{}] {}'.format(commit.shortsha, status, commit.title))
+        # Print a single merged commit to show that a master branch has been
+        # reached
+        if commit.is_merged:
+            break
 
 
 if __name__ == '__main__':
