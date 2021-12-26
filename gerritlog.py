@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import colorama
 import enum
 import getpass
@@ -37,6 +38,8 @@ class Commit:
         self.title = self._get_title()
         self.sha = self._get_sha()
         self.shortsha = self._get_shortsha()
+        self.url = (get_url(self._repo) + f'/r/{self.change_id}'
+                    if self.change_id is not None else None)
 
     def _get_change_id(self):
         for line in [ln.strip() for ln in self.commit.message.split('\n')]:
@@ -107,10 +110,7 @@ def colorfmt(string: str, color: str, style: str = ''):
     return f'{color}{style}{string}{colorama.Style.RESET_ALL}'
 
 
-def main():
-    colorama.init()
-    repo = git.repo.Repo()
-    client = create_client(repo)
+def showlog(repo: git.repo.Repo, client: gerrit.GerritClient):
     color, style = colorama.Fore, colorama.Style
     statusmap = {VerifyStatus.FAILURE: colorfmt('x', color.RED),
                  VerifyStatus.NO_SCORE: colorfmt('?', color.YELLOW),
@@ -128,8 +128,49 @@ def main():
             break
 
 
+def showurl(repo: git.repo.Repo, client: gerrit.GerritClient, args: list[str]):
+    commits = []
+    for sha in args:
+        if '..' in sha:
+            crange = repo.merge_base(*sha.split('..'))
+        else:
+            crange = [sha]
+        commits += [Commit(repo.commit(c), client) for c in crange]
+    for commit in commits:
+        print('{} {} {}'.format(commit.shortsha, commit.title, commit.url))
+
+
+def main(args):
+    colorama.init()
+    repo = git.repo.Repo()
+    client = create_client(repo)
+
+    parser = argparse.ArgumentParser(description='Display information ' +
+                                     'about a gerrit patch series.')
+    subparsers = parser.add_subparsers()
+
+    def _log(args):
+        showlog(repo, client)
+    p = subparsers.add_parser('log', help='Show commit logs')
+    p.set_defaults(func=_log)
+
+    def _link(args):
+        showurl(repo, client, args.commit)
+    p = subparsers.add_parser('link', help='Get a gerrit link for a given ' +
+                                           'commit')
+    p.add_argument('commit', help='Commit or a revision range to check',
+                   nargs='+')
+    p.set_defaults(func=_link)
+
+    args = parser.parse_args(args)
+    if not hasattr(args, 'func'):
+        parser.print_help()
+        exit(1)
+    args.func(args)
+
+
 if __name__ == '__main__':
     try:
-        main()
+        main(sys.argv[1:])
     except (BrokenPipeError, KeyboardInterrupt):
         pass
