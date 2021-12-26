@@ -32,6 +32,7 @@ class Commit:
         self._repo = commit.repo
         self._master = self._get_master()
         self._client = gerrit
+        self._patch = None
         self.commit = commit
         self.change_id = self._get_change_id()
         self.is_merged = self._check_merged()
@@ -67,16 +68,32 @@ class Commit:
     def _get_shortsha(self):
         return self._repo.git.rev_parse(self._get_sha(), short=True)
 
-    def verify_status(self):
+    def _get_patch(self):
+        if self._patch is not None:
+            return self._patch
         if self.change_id is None:
+            return None
+        self._patch = self._client.changes.get(self.change_id, detailed=True)
+        return self._patch
+
+    def verify_status(self):
+        patch = self._get_patch()
+        if patch is None:
             return VerifyStatus.NO_SCORE
-        patch = self._client.changes.get(self.change_id, detailed=True)
         status = patch.labels['Verified']
         if status.get('approved') is not None:
             return VerifyStatus.SUCCESS
         if status.get('rejected') is not None:
             return VerifyStatus.FAILURE
         return VerifyStatus.NO_SCORE
+
+    def review_mark(self):
+        patch = self._get_patch()
+        if patch is None:
+            return 0
+        review = patch.labels['Code-Review']['all']
+        marks = [*filter(lambda v: v != 0, [m['value'] for m in review])]
+        return min(marks) if marks else 0
 
 
 def get_url(repo: git.repo.base.Repo):
@@ -115,12 +132,18 @@ def showlog(repo: git.repo.Repo, client: gerrit.GerritClient):
     statusmap = {VerifyStatus.FAILURE: colorfmt('x', color.RED),
                  VerifyStatus.NO_SCORE: colorfmt('?', color.YELLOW),
                  VerifyStatus.SUCCESS: colorfmt('v', color.GREEN)}
+    markmap = {-2: colorfmt('-2', color.RED),
+               -1: colorfmt('-1', color.RED),
+               0: ' 0',
+               1: colorfmt('+1', color.GREEN, style.DIM),
+               2: colorfmt('+2', color.GREEN)}
     for c in repo.iter_commits():
         commit = Commit(c, client)
         if commit.is_merged:
-            status = colorfmt('m', color.CYAN)
+            status = colorfmt('   m', color.CYAN)
         else:
-            status = statusmap[commit.verify_status()]
+            status = '{}|{}'.format(markmap[commit.review_mark()],
+                                    statusmap[commit.verify_status()])
         print('{} [{}] {}'.format(commit.shortsha, status, commit.title))
         # Print a single merged commit to show that a master branch has been
         # reached
