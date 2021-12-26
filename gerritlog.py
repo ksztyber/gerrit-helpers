@@ -95,6 +95,12 @@ class Commit:
         marks = [*filter(lambda v: v != 0, [m['value'] for m in review])]
         return min(marks) if marks else 0
 
+    def needs_rebase(self):
+        if self.is_merged:
+            return False
+        patch = self._get_patch()
+        return patch.status == 'MERGED'
+
 
 def get_url(repo: git.repo.base.Repo):
     origin = next(filter(lambda r: r.name == 'origin', repo.remotes), None)
@@ -139,7 +145,10 @@ def showlog(repo: git.repo.Repo, client: gerrit.GerritClient):
                2: colorfmt('+2', color.GREEN)}
     for c in repo.iter_commits():
         commit = Commit(c, client)
-        if commit.is_merged:
+        if commit.needs_rebase():
+            status = '{}/{}'.format(colorfmt('rb', color.YELLOW),
+                                    colorfmt('m', color.CYAN))
+        elif commit.is_merged:
             status = colorfmt('   m', color.CYAN)
         else:
             status = '{}|{}'.format(markmap[commit.review_mark()],
@@ -147,7 +156,7 @@ def showlog(repo: git.repo.Repo, client: gerrit.GerritClient):
         print('{} [{}] {}'.format(commit.shortsha, status, commit.title))
         # Print a single merged commit to show that a master branch has been
         # reached
-        if commit.is_merged:
+        if commit.is_merged and not commit.needs_rebase():
             break
 
 
