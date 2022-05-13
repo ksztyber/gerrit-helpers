@@ -100,6 +100,8 @@ class Commit:
         if self.is_merged:
             return False
         patch = self._get_patch()
+        if patch is None:
+            return False
         return patch.status == 'MERGED'
 
 
