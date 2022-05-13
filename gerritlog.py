@@ -50,7 +50,8 @@ class Commit:
 
     def _get_master(self):
         for head in self._repo.heads:
-            if head.tracking_branch().name == 'origin/master':
+            branch = head.tracking_branch()
+            if branch is not None and branch.name == 'origin/master':
                 return head
         return None
 
@@ -107,8 +108,7 @@ def get_url(repo: git.repo.base.Repo):
     if origin is None:
         raise ValueError('Failed to find origin remote')
     for url in [urllib.parse.urlparse(u) for u in origin.urls]:
-        if url.scheme in ('http', 'https'):
-            return f'{url.scheme}://{url.netloc}'
+        return f'https://{url.hostname}'
     raise ValueError('Failed to find origin http(s) url')
 
 
