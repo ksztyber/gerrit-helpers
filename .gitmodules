@@ -1,3 +1,0 @@
-[submodule "python-gerrit-api"]
-	path = python-gerrit-api
-	url = https://github.com/ksztyber/python-gerrit-api.git
