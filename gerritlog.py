@@ -69,7 +69,7 @@ class Commit:
             return self._patch
         if self.change_id is None:
             return None
-        self._patch = self._client.changes.get(self.change_id)
+        self._patch = self._client.changes.get([self.change_id])[0]
         return self._patch
 
     def verify_status(self):

@@ -18,9 +18,12 @@ class GerritSSHClient:
         def __init__(self, client):
             self._client = client
 
-        def get(self, id):
-            return GerritCommit(id, json.loads(self._client.query(
-                ['--all-approvals', f'change:{id}']).split('\n')[0]))
+        def get(self, ids):
+            return [GerritCommit(id, json.loads(c)) for c in
+                    self._client.query(
+                        ['--all-approvals',
+                         ' OR '.join([f'change:{id}' for id in ids])]
+                            ).split('\n')[:-2]]
 
     def __init__(self, hostname, port=29418, username=None):
         self._client = paramiko.SSHClient()
