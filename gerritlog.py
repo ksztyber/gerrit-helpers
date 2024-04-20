@@ -3,7 +3,6 @@
 import argparse
 import colorama
 import enum
-import getpass
 import git
 import itertools
 import netrc
@@ -11,12 +10,7 @@ import os
 import re
 import sys
 import urllib
-
-
-# Add the python-gerrit-api submodule to the path
-sys.path.insert(0, '{}/python-gerrit-api'.format(
-    os.path.dirname(os.path.realpath(__file__))))
-import gerrit  # noqa
+from gerrithelpers import GerritSSHClient
 
 
 class VerifyStatus(enum.Enum):
@@ -28,7 +22,8 @@ class VerifyStatus(enum.Enum):
 class Commit:
     _chgid_regex = re.compile(r'Change-Id:\s+([a-zA-Z0-9]+)')
 
-    def __init__(self, commit: git.Commit, gerrit: gerrit.GerritClient):
+    def __init__(self, commit: git.Commit, gerrit):
+        host, _, _ = get_origin(commit.repo)
         self._repo = commit.repo
         self._master = self._get_master()
         self._client = gerrit
@@ -39,7 +34,7 @@ class Commit:
         self.title = self._get_title()
         self.sha = self._get_sha()
         self.shortsha = self._get_shortsha()
-        self.url = (get_url(self._repo) + f'/r/{self.change_id}'
+        self.url = (f'{host}/r/{self.change_id}'
                     if self.change_id is not None else None)
 
     def _get_change_id(self):
@@ -105,37 +100,26 @@ class Commit:
         return patch.status == 'MERGED'
 
 
-def get_url(repo: git.repo.base.Repo):
+def get_origin(repo: git.repo.base.Repo):
     origin = next(filter(lambda r: r.name == 'origin', repo.remotes), None)
     if origin is None:
         raise ValueError('Failed to find origin remote')
     for url in [urllib.parse.urlparse(u) for u in origin.urls]:
-        return f'https://{url.hostname}'
-    raise ValueError('Failed to find origin http(s) url')
-
-
-def get_username():
-    username = os.getenv('GERRIT_USERNAME')
-    if username is not None:
-        return username
-    return getpass.getuser()
+        if url.scheme == 'ssh':
+            return url.hostname, url.username, url.port
+    raise ValueError('Failed to find ssh origin remote')
 
 
 def create_client(repo: git.repo.base.Repo):
-    url = get_url(repo)
-    if url not in netrc.netrc().hosts:
-        password = getpass.getpass()
-    else:
-        password = None
-    return gerrit.GerritClient(base_url=url, username=get_username(),
-                               use_netrc=password is None)
+    host, user, port = get_origin(repo)
+    return GerritSSHClient(hostname=host, username=user, port=port)
 
 
 def colorfmt(string: str, color: str, style: str = ''):
     return f'{color}{style}{string}{colorama.Style.RESET_ALL}'
 
 
-def showlog(repo: git.repo.Repo, client: gerrit.GerritClient):
+def showlog(repo: git.repo.Repo, client: GerritSSHClient):
     color, style = colorama.Fore, colorama.Style
     statusmap = {VerifyStatus.FAILURE: colorfmt('x', color.RED),
                  VerifyStatus.NO_SCORE: colorfmt('?', color.YELLOW),
@@ -162,7 +146,7 @@ def showlog(repo: git.repo.Repo, client: gerrit.GerritClient):
             break
 
 
-def showurl(repo: git.repo.Repo, client: gerrit.GerritClient, args: list[str]):
+def showurl(repo: git.repo.Repo, client: GerritSSHClient, args: list[str]):
     commits = []
     for sha in args:
         if '..' in sha:
