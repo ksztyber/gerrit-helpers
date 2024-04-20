@@ -19,7 +19,7 @@ class GerritSSHClient:
             self._client = client
 
         def get(self, ids):
-            return [GerritCommit(id, json.loads(c)) for c in
+            return [GerritCommit(json.loads(c)) for c in
                     self._client.query(
                         ['--all-approvals',
                          ' OR '.join([f'change:{id}' for id in ids])]

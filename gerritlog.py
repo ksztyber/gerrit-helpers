@@ -27,7 +27,7 @@ class Commit:
         self._repo = commit.repo
         self._master = self._get_master()
         self._client = gerrit
-        self._patch = None
+        self.changeinfo = None
         self.commit = commit
         self.change_id = self._get_change_id()
         self.is_merged = self._check_merged()
@@ -64,19 +64,10 @@ class Commit:
     def _get_shortsha(self):
         return self._repo.git.rev_parse(self._get_sha(), short=True)
 
-    def _get_patch(self):
-        if self._patch is not None:
-            return self._patch
-        if self.change_id is None:
-            return None
-        self._patch = self._client.changes.get([self.change_id])[0]
-        return self._patch
-
     def verify_status(self):
-        patch = self._get_patch()
-        if patch is None:
+        if self.changeinfo is None:
             return VerifyStatus.NO_SCORE
-        status = patch.labels['Verified']
+        status = self.changeinfo.labels['Verified']
         if status.get('approved') is not None:
             return VerifyStatus.SUCCESS
         if status.get('rejected') is not None:
@@ -84,20 +75,18 @@ class Commit:
         return VerifyStatus.NO_SCORE
 
     def review_mark(self):
-        patch = self._get_patch()
-        if patch is None:
+        if self.changeinfo is None:
             return 0
-        review = patch.labels['Code-Review']['all']
+        review = self.changeinfo.labels['Code-Review']['all']
         marks = [*filter(lambda v: v != 0, [m['value'] for m in review])]
         return min(marks) if marks else 0
 
     def needs_rebase(self):
         if self.is_merged:
             return False
-        patch = self._get_patch()
-        if patch is None:
+        if self.changeinfo is None:
             return False
-        return patch.status == 'MERGED'
+        return self.changeinfo.status == 'MERGED'
 
 
 def get_origin(repo: git.repo.base.Repo):
@@ -129,8 +118,17 @@ def showlog(repo: git.repo.Repo, client: GerritSSHClient):
                0: ' 0',
                1: colorfmt('+1', color.GREEN, style.DIM),
                2: colorfmt('+2', color.GREEN)}
+    commits = []
     for c in repo.iter_commits():
         commit = Commit(c, client)
+        commits.append(commit)
+        if commit.is_merged:
+            break
+    infos = {
+        info.id: info for info in
+            client.changes.get([c.change_id for c in commits])}
+    for commit in commits:
+        commit.changeinfo = infos.get(commit.change_id)
         if commit.needs_rebase():
             status = '{}/{}'.format(colorfmt('rb', color.YELLOW),
                                     colorfmt('m', color.CYAN))
@@ -140,10 +138,6 @@ def showlog(repo: git.repo.Repo, client: GerritSSHClient):
             status = '{}|{}'.format(markmap[commit.review_mark()],
                                     statusmap[commit.verify_status()])
         print('{} [{}] {}'.format(commit.shortsha, status, commit.title))
-        # Print a single merged commit to show that a master branch has been
-        # reached
-        if commit.is_merged and not commit.needs_rebase():
-            break
 
 
 def showurl(repo: git.repo.Repo, client: GerritSSHClient, args: list[str]):

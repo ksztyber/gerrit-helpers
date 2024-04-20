@@ -2,8 +2,8 @@
 # gerrit.changes.comments.GerritChangeRevisionComment, as this is what
 # gerritlog.py currently uses.  TODO: rework that.
 class GerritCommit:
-    def __init__(self, id, data):
-        self.id = id
+    def __init__(self, data):
+        self.id = data['id']
         self.labels = {'Verified': None, 'Code-Review': {'all': []}}
         self.status = data.get('status', 'UNKNOWN')
         self._parse_labels(data)
