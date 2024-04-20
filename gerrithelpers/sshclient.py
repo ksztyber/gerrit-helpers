@@ -18,7 +18,7 @@ class GerritSSHClient:
         def __init__(self, client):
             self._client = client
 
-        def get(self, id, detailed=False):
+        def get(self, id):
             return GerritCommit(id, json.loads(self._client.query(
                 ['--all-approvals', f'change:{id}']).split('\n')[0]))
 
