@@ -17,8 +17,8 @@ class GerritCommit:
         if len(verified) > 0:
             verified = verified[0]
             self.labels['Verified'] = {
-                'approved': verified['value'] in ['1', '2'],
-                'rejected': verified['value'] not in ['1', '2']}
+                'approved': verified['value'] in ['1', '2'] or None,
+                'rejected': verified['value'] not in ['1', '2'] or None}
         for patch in reversed(patchsets):
             labels = patch.get('approvals', [])
             for cr in [l for l in labels if l['type'] == 'Code-Review']:
