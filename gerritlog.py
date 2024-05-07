@@ -85,7 +85,9 @@ class Commit:
             return 0
         review = self.changeinfo.labels['Code-Review']['all']
         marks = [*filter(lambda v: v != 0, [m['value'] for m in review])]
-        return min(marks) if marks else 0
+        if len(marks) == 0:
+            return 0
+        return min(marks) if min(marks) < 0 else max(marks)
 
     def needs_rebase(self):
         if self.is_merged:
