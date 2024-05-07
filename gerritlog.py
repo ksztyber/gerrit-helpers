@@ -2,6 +2,7 @@
 
 import argparse
 import colorama
+import dataclasses
 import enum
 import git
 import itertools
@@ -17,6 +18,11 @@ class VerifyStatus(enum.Enum):
     FAILURE = -1
     NO_SCORE = 0
     SUCCESS = 1
+
+
+@dataclasses.dataclass
+class LogOptions:
+    max_count: int
 
 
 class Commit:
@@ -108,7 +114,7 @@ def colorfmt(string: str, color: str, style: str = ''):
     return f'{color}{style}{string}{colorama.Style.RESET_ALL}'
 
 
-def showlog(repo: git.repo.Repo, client: GerritSSHClient):
+def showlog(repo: git.repo.Repo, client: GerritSSHClient, options: LogOptions):
     color, style = colorama.Fore, colorama.Style
     statusmap = {VerifyStatus.FAILURE: colorfmt('x', color.RED),
                  VerifyStatus.NO_SCORE: colorfmt('?', color.YELLOW),
@@ -119,10 +125,10 @@ def showlog(repo: git.repo.Repo, client: GerritSSHClient):
                1: colorfmt('+1', color.GREEN, style.DIM),
                2: colorfmt('+2', color.GREEN)}
     commits = []
-    for c in repo.iter_commits():
+    for i, c in enumerate(repo.iter_commits(), 1):
         commit = Commit(c, client)
         commits.append(commit)
-        if commit.is_merged:
+        if commit.is_merged or i >= options.max_count:
             break
     infos = {
         info.id: info for info in
@@ -162,8 +168,9 @@ def main(args):
     subparsers = parser.add_subparsers()
 
     def _log(args):
-        showlog(repo, client)
+        showlog(repo, client, LogOptions(max_count=int(args.max_count)))
     p = subparsers.add_parser('log', help='Show commit logs')
+    p.add_argument('--max-count', help='Maximum number of commits to display', default=1 << 64)
     p.set_defaults(func=_log)
 
     def _link(args):
