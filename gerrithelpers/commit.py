@@ -4,7 +4,7 @@
 class GerritCommit:
     def __init__(self, data):
         self.id = data['id']
-        self.labels = {'Verified': None, 'Code-Review': {'all': []}}
+        self.labels = {'Verified': {}, 'Code-Review': {'all': []}}
         self.status = data.get('status', 'UNKNOWN')
         self._parse_labels(data)
 
