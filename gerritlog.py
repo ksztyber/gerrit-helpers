@@ -84,10 +84,11 @@ class Commit:
         if self.changeinfo is None:
             return 0
         review = self.changeinfo.labels['Code-Review']['all']
-        marks = [*filter(lambda v: v != 0, [m['value'] for m in review])]
-        if len(marks) == 0:
-            return 0
-        return min(marks) if min(marks) < 0 else max(marks)
+        marks = [*filter(lambda v: v != 0, [m['value'] for m in review]), 0]
+        if minmark := min(marks) < 0:
+            return minmark
+        p2s = [*filter(lambda v: v == 2, marks)]
+        return 4 if len(p2s) >= 2 else max(marks)
 
     def needs_rebase(self):
         if self.is_merged:
@@ -125,7 +126,8 @@ def showlog(repo: git.repo.Repo, client: GerritSSHClient, options: LogOptions):
                -1: colorfmt('-1', color.RED),
                0: ' 0',
                1: colorfmt('+1', color.GREEN, style.DIM),
-               2: colorfmt('+2', color.GREEN)}
+               2: colorfmt('+2', color.GREEN),
+               4: colorfmt('+s', color.GREEN, style.BRIGHT)}
     commits = []
     for i, c in enumerate(repo.iter_commits(), 1):
         commit = Commit(c, client)
