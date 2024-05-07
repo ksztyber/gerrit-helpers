@@ -21,7 +21,7 @@ class GerritSSHClient:
         def get(self, ids):
             return [GerritCommit(json.loads(c)) for c in
                     self._client.query(
-                        ['--all-approvals',
+                        ['--current-patch-set',
                          ' OR '.join([f'change:{id}' for id in ids])]
                             ).split('\n')[:-2]]
 
