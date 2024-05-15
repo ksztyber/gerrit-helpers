@@ -85,7 +85,7 @@ class Commit:
             return 0
         review = self.changeinfo.labels['Code-Review']['all']
         marks = [*filter(lambda v: v != 0, [m['value'] for m in review]), 0]
-        if minmark := min(marks) < 0:
+        if (minmark := min(marks)) < 0:
             return minmark
         p2s = [*filter(lambda v: v == 2, marks)]
         return 4 if len(p2s) >= 2 else max(marks)
